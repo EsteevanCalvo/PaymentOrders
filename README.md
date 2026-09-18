@@ -125,9 +125,9 @@ Se usa Builder ya que una orden necesita varios datos antes de poder siquiera ex
 
 ### Qué ocurriría sin ellos
 
-Si no existiera esta manera organizada de crear las órdenes, cada parte del sistema que necesite una tendría que saber por su cuenta qué tipo de orden es, qué datos necesita cada una y cómo armarla correctamente esto mediante un unico switch.
+Si no existiera esta manera organizada de crear las órdenes, cada parte del sistema que necesite una tendría que saber por su cuenta qué tipo de orden es, qué datos necesita cada una y cómo armarla correctamente por ejemplo, con su propio switch. 
 
-Eso significa que ese conocimiento quedaría regado en varios lugares en vez de estar concentrado en uno solo lugar Y si algún día cambia una regla de cómo se arma una orden, tendrías que ir a corregirla en todos esos lugares y todo esto con el riesgo de olvidar alguno creando errores y extendiendo el tiempo de correcion.
+Eso significa que esa logica de cada creacion de ordenes quedaria regado en varios lugares en vez de estar concentrado en uno solo entonces si algún día cambia una regla de cómo se arma una orden, tendrías que ir a corregirla en todos esos lugares, con el riesgo de olvidar alguno, creando errores y extendiendo el tiempo de corrección.
 
 ### Dónde viven las reglas de negocio
 
