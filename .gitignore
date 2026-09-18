@@ -1,0 +1,32 @@
+# Build
+bin/
+obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# VS Code
+.vscode/
+
+# .NET
+*.user
+*.suo
+
+# Logs
+*.log
+
+# SQLite / bases de datos locales
+*.db
+*.db-shm
+*.db-wal
+
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
