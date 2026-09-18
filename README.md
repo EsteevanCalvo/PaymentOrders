@@ -115,24 +115,31 @@ Documenta tus respuestas aquí antes de la defensa:
 
 ### Por qué Factory
 
-Usamos Factory porque no queremos que Application (el PaymentOrderService) sepa cuál de las tres clases concretas de orden debe crear (NationalPaymentOrder, InternationalPaymentOrder o ScheduledPaymentOrder). Entonces en lugar de que el Service haga new NationalPaymentOrder(...) directamente, le pedimos al Factory: paymentOrderFactory.CreateBuilder(request.OrderType), y es el Factory quien internamente decide cuál Builder devolver. Así, si agregamos un tipo de orden nuevo, solo cambiamos el Factory (y el Builder), no el Service ni el Controller.
+Se elige Factory porque la parte que arma las órdenes no debería tener que decidir cosas como cuál tipo de orden es esta y cómo la deberia construir por eso mismo le delegamos esa decisión a una pieza aparte, el cual su trabajo es decirnos qué tipo de orden necesita y esa pieza la prepara teniendo en cuenta lo necesario para construirla entonces así quien pide la orden nunca tiene que saber los detalles internos de cada tipo ya que solo pide y recibe
+
+Y si mañana aparece un tipo de orden nuevo, solo esa pieza necesita aprender a manejarlo; el resto del sistema sigue igual.
 
 ### Por qué Builder
 
-Usamos Builder porque una orden tiene varios datos que necesitamos configurar antes de poder crearla, y algunos dependen del tipo (por ejemplo el SWIFT solo aplica si es internacional). Entonces en lugar de crear la orden de una sola vez con muchos datos, vamos agregándolos paso a paso: .WithId(...), .WithSourceAccount(...), .WithAmount(...), etc. Y finalmente usamos .Build(), que arma todo en un PaymentOrderDraft y ahí se revisa que los datos obligatorios estén correctos (monto válido, cuentas distintas, SWIFT si aplica, fecha futura si aplica) antes de crear la orden.
+Se usa Builder ya que una orden necesita varios datos antes de poder siquiera existir, y no todos llegan al mismo tiempo ni de la misma forma, entonces en vez de exigir todo de una vez, vamos entregando los datos poco a poco, uno por uno, hasta que están completos, aca es lo fundamental ya que solo al final, cuando decimos ya termine, ahora construyela, se revisa que todo esté correcto y ahí sí nace la orden. Si algo obligatorio falta o está mal, se rechaza justo en ese momento final, no se rechaza antes ni después.
 
 ### Qué ocurriría sin ellos
 
-Sin estos patrones, el PaymentOrderService tendría que hacer un switch propio para decidir qué clase concreta instanciar, y armar manualmente los datos de cada tipo de orden en cada lugar donde se necesite crear una. Eso significa que Application terminaría conociendo las tres clases concretas de Domain, y si mañana agregamos un tipo de orden nuevo, tendríamos que tocar Application también, no solo Domain. Además esa lógica de armado se podría terminar repitiendo si en el futuro hay más de un lugar donde se crean órdenes.
+Si no existiera esta manera organizada de crear las órdenes, cada parte del sistema que necesite una tendría que saber por su cuenta qué tipo de orden es, qué datos necesita cada una y cómo armarla correctamente esto mediante un unico switch.
+
+Eso significa que ese conocimiento quedaría regado en varios lugares en vez de estar concentrado en uno solo lugar Y si algún día cambia una regla de cómo se arma una orden, tendrías que ir a corregirla en todos esos lugares y todo esto con el riesgo de olvidar alguno creando errores y extendiendo el tiempo de correcion.
 
 ### Dónde viven las reglas de negocio
 
-Todas las reglas de negocio viven dentro de la clase PaymentOrder, no en el Builder ni en el Service. Cuando el Builder llama a .Build(), el constructor de PaymentOrder valida el monto, que las cuentas sean distintas, y llama a ValidateTypeSpecificInvariants(), que cada subtipo sobreescribe: InternationalPaymentOrder exige SWIFT y ScheduledPaymentOrder exige una fecha futura. Las transiciones de estado (por ejemplo que no puedas completar una orden que no ha empezado a procesarse) también están ahí, en el método Transition.
+todas las condiciones que hacen válida a una orden que el monto tenga sentido, que las cuentas sean distintas, que las internacionales traigan su código bancario, que las programadas tengan una fecha futura, y que solo pueda cambiar de estado en el orden correcto están concentradas en un solo lugar osea dentro del PaymentOrder
 
 ### Cómo se garantiza idempotencia
 
-Garantizamos idempotencia porque antes de crear una orden, el Service primero busca si ya existe un registro con esa Idempotency-Key (GetOrderIdAsync). Si ya existe, devolvemos el mismo orderId en vez de crear una orden nueva. Y si dos solicitudes llegan casi al mismo tiempo con la misma clave, la tabla idempotency_records tiene esa clave como llave primaria, entonces la base de datos rechaza el segundo insert, y el código detecta ese error y vuelve a consultar cuál orden quedó registrada.
+Cada solicitud trae un número de referencia único, y antes de crear una orden el sistema revisa si ya usó ese número antes. Si ya existe, devuelve la orden que ya había creado en vez de duplicarla.
+
+Idempotency-Key (GetOrderIdAsync).
 
 ### Cómo se protegen las transiciones de estado
 
-Protegemos las transiciones porque cada método (MoveToPending, StartProcessing, Complete, Fail, Cancel) primero revisa en qué estado está la orden antes de cambiarla. Por ejemplo, Complete solo funciona si la orden está en Processing, y Cancel solo si está en Pending. Si intentas una transición que no corresponde, el método Transition lanza una excepción en vez de dejar que la orden pase a un estado inválido.
+Una orden solo puede avanzar por sus etapas en el orden correcto, sin saltarse ninguna. Antes de cambiarla de etapa, el sistema revisa en cuál está actualmente, y si el cambio no tiene sentido desde ahí, lo rechaza.
+
